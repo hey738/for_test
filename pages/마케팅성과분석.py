@@ -28,8 +28,7 @@ def authenticate():
 st.set_page_config(page_title="마케팅 성과 분석", layout="wide")
 authenticate()
 
-st.title("📈 마케팅 성과 분석")
-st.markdown("마케팅 캠페인의 효과를 분석하고 ROI를 측정합니다.")
+st.title("마케팅 성과 분석")
 
 # 데이터 로드
 @st.cache_data
@@ -108,17 +107,7 @@ all_regions = df['행정동'].dropna().unique().tolist()
 target_regions = st.sidebar.multiselect(
     "타겟 지역 선택",
     options=all_regions,
-    default=[]
-)
-
-# 마케팅 비용 입력 (선택사항)
-st.sidebar.subheader("💰 마케팅 비용")
-marketing_cost = st.sidebar.number_input(
-    "마케팅 비용 (원)",
-    min_value=0,
-    value=0,
-    step=100000,
-    help="ROI 계산을 위한 마케팅 비용을 입력하세요"
+    default=['월곶동', '배곧1동', '배곧2동']
 )
 
 # 데이터 필터링
@@ -141,11 +130,10 @@ after_data = df[
 ]
 
 # 메인 탭 구성
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     "📊 Overview", 
     "🗺️ 지역별 성과", 
-    "👥 신환 분석", 
-    "💰 ROI 분석"
+    "👥 신환 분석"
 ])
 
 with tab1:
@@ -163,8 +151,8 @@ with tab1:
         else:
             st.info("**타겟 지역**: 전체")
     
-    # 핵심 KPI
-    st.subheader("핵심 성과 지표")
+    # 핵심 KPI - 캠페인 기간
+    st.subheader("캠페인 기간 성과 지표")
     
     # 타겟 지역 필터링
     if target_regions:
@@ -229,49 +217,41 @@ with tab1:
             delta_color="normal"
         )
     
-    # 타겟 vs 비타겟 지역 비교 (타겟 지역이 선택된 경우)
-    if target_regions and len(campaign_non_target) > 0:
-        st.subheader("타겟 vs 비타겟 지역 성과 비교")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # 타겟 지역 성과
-            st.write("**🎯 타겟 지역**")
-            target_new_growth = ((new_patients_campaign - new_patients_before) / new_patients_before * 100) if new_patients_before > 0 else 0
-            
-            non_target_new_campaign = len(campaign_non_target[campaign_non_target['초/재진'] == '신환'])
-            non_target_new_before = len(before_non_target[before_non_target['초/재진'] == '신환'])
-            non_target_new_growth = ((non_target_new_campaign - non_target_new_before) / non_target_new_before * 100) if non_target_new_before > 0 else 0
-            
-            comparison_df = pd.DataFrame({
-                '구분': ['타겟 지역', '비타겟 지역'],
-                '신환 증가율': [target_new_growth, non_target_new_growth],
-                '방문 증가율': [visit_growth, 
-                               ((len(campaign_non_target) - len(before_non_target)) / len(before_non_target) * 100) if len(before_non_target) > 0 else 0]
-            })
-            
-            chart = alt.Chart(comparison_df).mark_bar().encode(
-                x=alt.X('구분:N', title='', axis=alt.Axis(labelAngle=0)),
-                y=alt.Y('신환 증가율:Q', title='신환 증가율 (%)'),
-                color=alt.Color('구분:N', legend=None, scale=alt.Scale(scheme='blues')),
-                tooltip=['구분', alt.Tooltip('신환 증가율:Q', format='.1f')]
-            ).properties(height=300)
-            
-            st.altair_chart(chart, use_container_width=True)
-        
-        with col2:
-            st.write("**📈 방문 증가율 비교**")
-            
-            chart2 = alt.Chart(comparison_df).mark_bar().encode(
-                x=alt.X('구분:N', title='', axis=alt.Axis(labelAngle=0)),
-                y=alt.Y('방문 증가율:Q', title='방문 증가율 (%)'),
-                color=alt.Color('구분:N', legend=None, scale=alt.Scale(scheme='greens')),
-                tooltip=['구분', alt.Tooltip('방문 증가율:Q', format='.1f')]
-            ).properties(height=300)
-            
-            st.altair_chart(chart2, use_container_width=True)
+    # 비교 기간 KPI
+    st.subheader("비교 기간 성과 지표")
     
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            "신환 수",
+            f"{new_patients_before:,}명",
+            help=f"비교 기간: {before_start} ~ {before_end}"
+        )
+    
+    with col2:
+        st.metric(
+            "전체 방문",
+            f"{total_visits_before:,}건",
+            help=f"비교 기간: {before_start} ~ {before_end}"
+        )
+    
+    with col3:
+        st.metric(
+            "전체 환자 수",
+            f"{unique_patients_before:,}명",
+            help=f"비교 기간: {before_start} ~ {before_end}"
+        )
+    
+    with col4:
+        st.metric(
+            "신환 비율",
+            f"{new_ratio_before:.1f}%",
+            help=f"비교 기간: {before_start} ~ {before_end}"
+        )
+    
+    st.markdown("---")
+
     # 일별 트렌드
     st.subheader("일별 신환 트렌드")
     
@@ -433,11 +413,26 @@ with tab2:
         st.altair_chart(chart3, use_container_width=True)
 
 with tab3:
-    st.header("👥 신환 분석")
+    # 타겟 지역 선택 시 헤더에 표시
+    if target_regions:
+        regions_display = ', '.join(target_regions[:3]) + ('...' if len(target_regions) > 3 else '')
+        st.header(f"👥 신환 분석 (타겟 지역: {regions_display})")
+    else:
+        st.header("👥 신환 분석 (전체 지역)")
     
-    # 신환 상세 분석
-    new_patients_campaign = campaign_data[campaign_data['초/재진'] == '신환']
-    new_patients_before = before_data[before_data['초/재진'] == '신환']
+    # 신환 상세 분석 - 타겟 지역 필터 적용
+    if target_regions:
+        new_patients_campaign = campaign_data[
+            (campaign_data['초/재진'] == '신환') & 
+            (campaign_data['행정동'].isin(target_regions))
+        ]
+        new_patients_before = before_data[
+            (before_data['초/재진'] == '신환') & 
+            (before_data['행정동'].isin(target_regions))
+        ]
+    else:
+        new_patients_campaign = campaign_data[campaign_data['초/재진'] == '신환']
+        new_patients_before = before_data[before_data['초/재진'] == '신환']
     
     col1, col2 = st.columns(2)
     
@@ -491,7 +486,14 @@ with tab3:
     
     # 이후 30일간 재방문 확인
     if len(after_data) > 0:
-        revisits = after_data[after_data['환자번호'].isin(new_patient_ids)]
+        # 타겟 지역 필터 적용
+        if target_regions:
+            revisits = after_data[
+                (after_data['환자번호'].isin(new_patient_ids)) & 
+                (after_data['행정동'].isin(target_regions))
+            ]
+        else:
+            revisits = after_data[after_data['환자번호'].isin(new_patient_ids)]
         
         revisit_count = revisits.groupby('환자번호').size().reset_index(name='재방문횟수')
         
@@ -506,8 +508,19 @@ with tab3:
             st.metric("평균 재방문 횟수", f"{avg_revisits:.1f}회")
         
         with col3:
-            retention_7d = len(after_data[(after_data['환자번호'].isin(new_patient_ids)) & 
-                                         (after_data['진료일자'] <= pd.to_datetime(campaign_end + timedelta(days=7)))]['환자번호'].unique())
+            # 타겟 지역 필터 적용한 7일 내 재방문율
+            if target_regions:
+                retention_7d_data = after_data[
+                    (after_data['환자번호'].isin(new_patient_ids)) & 
+                    (after_data['진료일자'] <= pd.to_datetime(campaign_end + timedelta(days=7))) &
+                    (after_data['행정동'].isin(target_regions))
+                ]
+            else:
+                retention_7d_data = after_data[
+                    (after_data['환자번호'].isin(new_patient_ids)) & 
+                    (after_data['진료일자'] <= pd.to_datetime(campaign_end + timedelta(days=7)))
+                ]
+            retention_7d = len(retention_7d_data['환자번호'].unique())
             retention_7d_rate = retention_7d / len(new_patient_ids) * 100 if len(new_patient_ids) > 0 else 0
             st.metric("7일 내 재방문율", f"{retention_7d_rate:.1f}%")
         
@@ -527,169 +540,3 @@ with tab3:
         st.altair_chart(chart3, use_container_width=True)
     else:
         st.info("캠페인 종료 후 데이터가 충분하지 않아 재방문 분석을 수행할 수 없습니다.")
-
-with tab4:
-    st.header("💰 ROI 분석")
-    
-    if marketing_cost > 0:
-        # ROI 계산
-        st.subheader("투자 수익률 (ROI)")
-        
-        # 신환 관련 메트릭
-        new_patients = len(campaign_data[campaign_data['초/재진'] == '신환'])
-        cac = marketing_cost / new_patients if new_patients > 0 else 0
-        
-        # 신환의 평균 재방문 횟수 계산 (향후 30일)
-        new_patient_ids = campaign_data[campaign_data['초/재진'] == '신환']['환자번호'].unique()
-        
-        if len(after_data) > 0:
-            revisits_per_patient = after_data[after_data['환자번호'].isin(new_patient_ids)].groupby('환자번호').size().mean()
-        else:
-            revisits_per_patient = 1
-        
-        # 예상 수익 (가정: 방문당 평균 진료비)
-        avg_revenue_per_visit = st.number_input(
-            "방문당 평균 매출 (원)",
-            min_value=0,
-            value=50000,
-            step=10000,
-            help="정확한 ROI 계산을 위해 평균 진료비를 입력하세요"
-        )
-        
-        total_revenue = new_patients * (1 + revisits_per_patient) * avg_revenue_per_visit
-        roi = ((total_revenue - marketing_cost) / marketing_cost * 100) if marketing_cost > 0 else 0
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric(
-                "신환 획득 비용 (CAC)",
-                f"{cac:,.0f}원",
-                help="Customer Acquisition Cost"
-            )
-        
-        with col2:
-            st.metric(
-                "신환 예상 LTV",
-                f"{(1 + revisits_per_patient) * avg_revenue_per_visit:,.0f}원",
-                help="30일 기준 Life Time Value"
-            )
-        
-        with col3:
-            st.metric(
-                "예상 총 수익",
-                f"{total_revenue:,.0f}원"
-            )
-        
-        with col4:
-            st.metric(
-                "ROI",
-                f"{roi:.1f}%",
-                delta=f"{roi:.1f}%",
-                delta_color="normal" if roi > 0 else "inverse"
-            )
-        
-        # 손익분기점 분석
-        st.subheader("📊 손익분기점 분석")
-        
-        breakeven_patients = marketing_cost / ((1 + revisits_per_patient) * avg_revenue_per_visit)
-        current_progress = (new_patients / breakeven_patients * 100) if breakeven_patients > 0 else 0
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.metric(
-                "손익분기 필요 신환수",
-                f"{breakeven_patients:.0f}명"
-            )
-            st.metric(
-                "현재 달성률",
-                f"{current_progress:.1f}%"
-            )
-        
-        with col2:
-            # 진행률 바 차트
-            progress_data = pd.DataFrame({
-                '구분': ['달성', '미달성'],
-                '값': [min(current_progress, 100), max(0, 100 - current_progress)]
-            })
-            
-            chart = alt.Chart(progress_data).mark_arc().encode(
-                theta='값:Q',
-                color=alt.Color('구분:N', 
-                              scale=alt.Scale(domain=['달성', '미달성'], 
-                                            range=['#00D084', '#E0E0E0']),
-                              legend=None),
-                tooltip=['구분', '값']
-            ).properties(
-                width=200,
-                height=200
-            )
-            
-            st.altair_chart(chart, use_container_width=True)
-        
-        # 예측 시뮬레이션
-        st.subheader("🔮 수익 예측 시뮬레이션")
-        
-        # 시뮬레이션 파라미터
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            ltv_months = st.slider("LTV 계산 기간 (개월)", 1, 12, 6)
-            monthly_retention = st.slider("월 평균 재방문율 (%)", 0, 100, 70)
-        
-        with col2:
-            monthly_visits = st.slider("재방문시 월평균 방문 횟수", 1, 10, 2)
-            
-        # LTV 계산
-        projected_ltv = 0
-        for month in range(ltv_months):
-            retention = (monthly_retention / 100) ** month
-            projected_ltv += retention * monthly_visits * avg_revenue_per_visit
-        
-        projected_total_revenue = new_patients * projected_ltv
-        projected_roi = ((projected_total_revenue - marketing_cost) / marketing_cost * 100) if marketing_cost > 0 else 0
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric(
-                f"{ltv_months}개월 예상 LTV",
-                f"{projected_ltv:,.0f}원"
-            )
-        
-        with col2:
-            st.metric(
-                f"{ltv_months}개월 예상 총 수익",
-                f"{projected_total_revenue:,.0f}원"
-            )
-        
-        with col3:
-            st.metric(
-                f"{ltv_months}개월 예상 ROI",
-                f"{projected_roi:.1f}%",
-                delta=f"{projected_roi - roi:.1f}%p",
-                delta_color="normal" if projected_roi > roi else "inverse"
-            )
-        
-    else:
-        st.info("💡 마케팅 비용을 입력하면 ROI 분석을 볼 수 있습니다.")
-        
-        # 비용 없이도 볼 수 있는 기본 메트릭
-        st.subheader("기본 성과 지표")
-        
-        new_patients = len(campaign_data[campaign_data['초/재진'] == '신환'])
-        total_visits = len(campaign_data)
-        unique_patients = campaign_data['환자번호'].nunique()
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("캠페인 기간 신환", f"{new_patients:,}명")
-        
-        with col2:
-            st.metric("총 방문 건수", f"{total_visits:,}건")
-        
-        with col3:
-            avg_visits = total_visits / unique_patients if unique_patients > 0 else 0
-            st.metric("환자당 평균 방문", f"{avg_visits:.1f}회")
